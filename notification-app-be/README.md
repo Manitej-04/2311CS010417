@@ -134,3 +134,184 @@ Delete a single notification record by id.
 DELETE /api/v1/notifications/{id}
 ```
 
+# Stage 2
+
+## Database Choice
+
+I recommend **MySQL** as the persistent storage for the Campus Notification System.
+
+### Why MySQL?
+
+- Supports ACID transactions for reliable data storage.
+- Excellent performance for CRUD operations.
+- Supports indexing to optimize frequent queries.
+- Suitable for structured relational data.
+- Easy to scale using read replicas and partitioning.
+- Mature ecosystem with good tooling and community support.
+
+---
+
+# Database Schema
+
+## Students Table
+
+```sql
+CREATE TABLE students (
+    studentID INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## Notifications Table
+
+```sql
+CREATE TABLE notifications (
+    notificationID CHAR(36) PRIMARY KEY,
+    studentID INT NOT NULL,
+    notificationType ENUM('Placement','Result','Event') NOT NULL,
+    title VARCHAR(200),
+    message TEXT NOT NULL,
+    isRead BOOLEAN DEFAULT FALSE,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(studentID)
+    REFERENCES students(studentID)
+    ON DELETE CASCADE
+);
+```
+
+---
+
+# Entity Relationship
+
+```
+Students (1)
+      │
+      │
+      ▼
+Notifications (Many)
+```
+
+Each student can have multiple notifications.
+
+---
+
+# Queries for Stage 1 APIs
+
+## 1. Get All Notifications
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = ?
+ORDER BY createdAt DESC;
+```
+
+---
+
+## 2. Get Notification By ID
+
+```sql
+SELECT *
+FROM notifications
+WHERE notificationID = ?;
+```
+
+---
+
+## 3. Mark Notification as Read
+
+```sql
+UPDATE notifications
+SET isRead = TRUE
+WHERE notificationID = ?;
+```
+
+---
+
+## 4. Mark All Notifications as Read
+
+```sql
+UPDATE notifications
+SET isRead = TRUE
+WHERE studentID = ?;
+```
+
+---
+
+## 5. Delete Notification
+
+```sql
+DELETE
+FROM notifications
+WHERE notificationID = ?;
+```
+
+---
+
+# Challenges as Data Grows
+
+As the number of students and notifications increases, several issues may arise:
+
+- Slower search queries due to large table scans.
+- Increased database storage requirements.
+- Higher write latency during peak notification periods.
+- Increased server load from frequent reads.
+- Longer backup and recovery times.
+
+---
+
+# Scalability Solutions
+
+## 1. Indexing
+
+Create indexes on frequently queried columns.
+
+```sql
+CREATE INDEX idx_student_read_created
+ON notifications(studentID, isRead, createdAt DESC);
+```
+
+---
+
+## 2. Pagination
+
+Retrieve notifications in smaller batches.
+
+Example:
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = ?
+ORDER BY createdAt DESC
+LIMIT 20 OFFSET 0;
+```
+
+---
+
+## 3. Read Replicas
+
+Use read replicas to distribute read-heavy traffic while keeping writes on the primary database.
+
+---
+
+## 4. Table Partitioning
+
+Partition the notifications table based on creation date or student ID to reduce query scan time.
+
+---
+
+## 5. Caching
+
+Use Redis to cache frequently accessed unread notifications and reduce database load.
+
+---
+
+# Summary
+
+MySQL provides reliable transactional storage for the notification system. Performance can be maintained at scale through indexing, pagination, read replicas, partitioning, and caching.
